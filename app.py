@@ -10,8 +10,9 @@ from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, Response, jsonify
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'sessions'
+app.config['UPLOAD_FOLDER'] = os.path.abspath('sessions')  # Use absolute path
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
+
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
@@ -22,7 +23,7 @@ sessions = {}
 session_lock = threading.Lock()
 CLEANUP_INTERVAL = 300  # 5 minutes
 INACTIVITY_TIMEOUT = 1800  # 30 minutes
-
+global root_dir
 def cleanup_task():
     while True:
         time.sleep(CLEANUP_INTERVAL)
@@ -46,7 +47,25 @@ def cleanup_task():
 cleanup_thread = threading.Thread(target=cleanup_task, daemon=True)
 cleanup_thread.start()
 
-
+def sanitize_path(path):
+    """Sanitize file path to prevent directory traversal"""
+    # Normalize path and convert to POSIX format
+    path = os.path.normpath(path).replace('\\', '/')
+    
+    # Remove leading slash and split into components
+    path = path.lstrip('/')
+    parts = []
+    
+    for part in path.split('/'):
+        if part in ('.', ''):
+            continue
+        if part == '..':
+            if parts:
+                parts.pop()
+            continue
+        parts.append(part)
+    
+    return '/'.join(parts)
 def grant_full_access(path):
     """Grant full access to path (Windows only)"""
     if os.name == 'nt':
@@ -88,46 +107,58 @@ def handle_error(e):
     return jsonify(error=str(e)), 500
 
 @app.route('/', methods=['GET', 'POST'])
-def upload():
-    try:
-        if request.method == 'POST':
-            if 'files' not in request.files:
-                raise ValueError("No files uploaded")
-            
-            files = request.files.getlist('files')
-            if not files or files[0].filename == '':
-                raise ValueError("Empty file selection")
-            
-            session_id = str(uuid.uuid4())
-            session_dir = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
-            os.makedirs(session_dir, exist_ok=True)
+def upload(): 
+    session_id = str(uuid.uuid4())
+    session_dir = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
+    os.makedirs(session_dir, exist_ok=True)
 
-            for file in files:
-                safe_path = os.path.join(session_dir, os.path.basename(file.filename))
-                file.save(safe_path)
+    if request.method == 'POST':
+        files = request.files.getlist('files')
+        if not files:
+            return "No files selected", 400
+        for file in files:
+            if file.filename == '':
+                continue
 
-            if not any(f.endswith('.tf') for f in os.listdir(session_dir)):
-                raise ValueError("No Terraform files found")
+            # Sanitize filename
+            filename = sanitize_path(file.filename)
+            if not filename:
+                continue  # Skip invalid paths
             
-            return redirect(url_for('variables', session_id=session_id))
-        
-        return render_template('upload.html')
-    
-    except Exception as e:
-        logger.error(f"Upload error: {str(e)}")
-        return handle_error(e)
+            # Create full target path
+            #print("Filename:  ",filename)
+            target_path = os.path.join(session_dir, filename.split('/', 1)[1])
+            
+            # Convert to absolute paths for validation
+            target_abspath = os.path.abspath(target_path)
+            upload_abspath = os.path.abspath(session_dir)
+
+            # Verify the target is within the upload directory
+            if not target_abspath.startswith(upload_abspath):
+                return f"Invalid file path: {filename}", 400
+
+            # Create directories if needed
+            os.makedirs(os.path.dirname(target_abspath), exist_ok=True)
+            file.save(target_abspath)
+
+        #return f"Files uploaded successfully to session: {session_id}"
+        return redirect(url_for('variables', session_id=session_id))
+
+
+    return render_template('upload.html')
 
 @app.route('/variables/<session_id>', methods=['GET'])
 def variables(session_id):
     update_session_activity(session_id)
     session_dir = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
     variables = []
-    
     variables_tf_path = os.path.join(session_dir, 'variables.tf')
+    #print(variables_tf_path)
     if os.path.exists(variables_tf_path):
         try:
             with open(variables_tf_path, 'r') as f:
                 variables_tf = hcl2.load(f)
+                #print(variables_tf)
                 for var in variables_tf.get('variable', []):
                     var_name = list(var.keys())[0]
                     var_details = var[var_name]
@@ -236,31 +267,7 @@ def run_command(session_id):
         yield f"\nProcess completed with exit code {return_code}\n"
     
     return Response(generate(), mimetype='text/plain')
-    # process = subprocess.Popen(
-    #     commands[command],
-    #     cwd=session_dir,
-    #     stdout=subprocess.PIPE,
-    #     stderr=subprocess.STDOUT,
-    #     bufsize=1,
-    #     universal_newlines=True,
-    #     env={**os.environ, 'TERM': 'xterm-256color'}
-    # )
-    
-    # def generate():
-    #     for line in iter(process.stdout.readline, ''):
-    #         yield line
-    #     process.stdout.close()
-    #     return_code = process.wait()
-        
-    #     # if command == 'destroy' and return_code == 0:
-    #     #     shutil.rmtree(session_dir, ignore_errors=True)
-    #     #     with session_lock:
-    #     #         if session_id in sessions:
-    #     #             del sessions[session_id]
-        
-    #     yield f"\nProcess completed with exit code {return_code}\n"
-    
-    # return Response(generate(), mimetype='text/plain')
+
 @app.route('/cleanup/<session_id>', methods=['POST'])
 def explicit_cleanup(session_id):
     session_dir = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
