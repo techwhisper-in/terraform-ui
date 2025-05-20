@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Terraform Console</title>
+    <script src="https://cdn.jsdelivr.net/npm/ansi_up@5.0.0/ansi_up.min.js"></script>
+    <style>
+        .session-warning {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: #ffecb3;
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        }
+        #console-container { max-width: 1000px; margin: 20px auto; padding: 20px; }
+        #output { 
+            background: #1e1e1e; 
+            color: #d4d4d4; 
+            padding: 20px; 
+            height: 500px; 
+            overflow-y: auto; 
+            font-family: monospace; 
+            white-space: pre-wrap; 
+        }
+        .button-group { margin: 20px 0; }
+        button { 
+            padding: 10px 20px; 
+            margin: 5px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+        }
+        .destructive { background: #f44336; color: white; }
+        .constructive { background: #467226; color: white; }
+        
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            text-align: center;
+            min-width: 350px;
+        }
+        .modal-buttons { margin-top: 25px; gap: 15px; }
+        .modal-button { padding: 12px 25px; }
+        .modal-approve { background: #4CAF50; }
+        .modal-reject { background: #f44336; }
+    </style>
+</head>
+<body>
+    <div class="session-warning">
+    ⚠️ Session data will be deleted when you close this tab
+    </div>
+    <div id="console-container">
+        <h1>Terraform Operations</h1>
+        <div class="button-group">
+            <button onclick="runCommand('init')">Init</button>
+            <button class="constructive" onclick="runCommand('plan')">Plan</button>
+            <button class="constructive" onclick="runCommand('apply')">Apply</button>
+            <button class="destructive" onclick="runCommand('plan-destroy')">Plan Destroy</button>
+            <button class="destructive" onclick="runCommand('destroy')">Destroy</button>
+        </div>
+        <div id="output"></div>
+    </div>
+
+    <div class="modal-overlay" id="confirmationModal">
+        <div class="modal-content">
+            <h3 id="modalMessage">Confirm Action</h3>
+            <div class="modal-buttons">
+                <button class="modal-button modal-approve" onclick="handleApproval(true)">Accept</button>
+                <button class="modal-button modal-reject" onclick="handleApproval(false)">Reject</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const sessionId = "{{ session_id }}";
+        const ansiConverter = new AnsiUp();
+        let pendingCommand = null;
+
+        function addOutput(text) {
+            const output = document.getElementById('output');
+            const div = document.createElement('div');
+            div.innerHTML = ansiConverter.ansi_to_html(text);
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function showConfirmationModal(command) {
+            const modal = document.getElementById('confirmationModal');
+            document.getElementById('modalMessage').textContent = 
+                `Are you sure you want to ${command}?`;
+            pendingCommand = command;
+            modal.style.display = 'flex';
+        }
+
+        function handleApproval(approved) {
+            document.getElementById('confirmationModal').style.display = 'none';
+            if (approved && pendingCommand) {
+                executeCommand(pendingCommand);
+            } else {
+                addOutput(`❌ ${pendingCommand} cancelled`);
+            }
+            pendingCommand = null;
+        }
+
+        function executeCommand(command) {
+            addOutput(`$ terraform ${command}`);
+            fetch(`/run-command/${sessionId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ command: command })
+            }).then(response => {
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                
+                function read() {
+                    reader.read().then(({ done, value }) => {
+                        if (done) return;
+                        addOutput(decoder.decode(value));
+                        read();
+                    });
+                }
+                read();
+            }).catch(error => {
+                addOutput(`Error: ${error.message}`);
+            });
+        }
+
+        function runCommand(command) {
+            if (['apply', 'destroy'].includes(command)) {
+                showConfirmationModal(command);
+            } else {
+                executeCommand(command);
+            }
+        }
+
+        // Session keep-alive
+        setInterval(() => {
+            fetch(`/heartbeat/${sessionId}`, { method: 'POST' });
+        }, 120000);
+
+        // Handle modal dismissal
+        document.getElementById('confirmationModal').addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) {
+                handleApproval(false);
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                handleApproval(false);
+            }
+        });
+        window.addEventListener('beforeunload', function(e) {
+        if (!navigator.sendBeacon) {
+            fetch(`/cleanup/${sessionId}`, { 
+                method: 'POST',
+                keepalive: true
+            });
+        } else {
+            navigator.sendBeacon(`/cleanup/${sessionId}`);
+        }
+    });
+    </script>
+</body>
+</html>

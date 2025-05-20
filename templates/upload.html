@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Terraform Configuration</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #3b82f6;
+            --background: #f8fafc;
+            --text-color: #1e293b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            padding: 2rem;
+        }
+
+        .upload-container {
+            background: white;
+            padding: 3rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .upload-container:hover {
+            transform: translateY(-5px);
+        }
+
+        h1 {
+            color: var(--text-color);
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+            font-weight: 700;
+        }
+
+        .upload-box {
+            border: 2px dashed #cbd5e1;
+            border-radius: 1rem;
+            padding: 2.5rem;
+            margin: 2rem 0;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .upload-box:hover {
+            border-color: var(--primary-color);
+            background: #f8fafc;
+        }
+
+        .upload-box.dragover {
+            border-color: var(--primary-color);
+            background: rgba(37, 99, 235, 0.05);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .upload-text {
+            color: #64748b;
+            margin-bottom: 1.5rem;
+            font-size: 1.1rem;
+        }
+
+        input[type="file"] {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+        }
+
+        .upload-button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .upload-button:hover {
+            background: var(--secondary-color);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(37, 99, 235, 0.2);
+        }
+
+        .supported-formats {
+            color: #64748b;
+            font-size: 0.9rem;
+            margin-top: 1.5rem;
+        }
+
+        .note {
+            color: #ef4444;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+
+        @media (max-width: 640px) {
+            .upload-container {
+                padding: 2rem;
+            }
+            
+            h1 {
+                font-size: 1.5rem;
+            }
+        }        
+        .submit-container {
+            margin-top: 2rem;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease;
+        }
+        
+        .submit-container.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .submit-button {
+            background: #10b981;
+            color: white;
+            padding: 1rem 2.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .submit-button:hover {
+            background: #059669;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(16, 185, 129, 0.2);
+        }
+        
+        .selected-files {
+            margin-top: 1rem;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+    <div class="upload-container">
+        <h1>🚀 Deploy Terraform Configuration</h1>
+        <form method="post" enctype="multipart/form-data">
+            <div class="upload-box" id="dropZone">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text" id="uploadText">
+                    click here to browse
+                </div>
+                <input type="file" name="files" webkitdirectory directory multiple required id="fileInput">
+                <button type="button" class="upload-button" onclick="document.getElementById('fileInput').click()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    Choose Folder
+                </button>
+            </div>
+            
+            <div class="submit-container" id="submitContainer">
+                <button type="submit" class="submit-button">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path>
+                        <path d="M12 12v9"></path>
+                        <path d="m16 15-4 4-4-4"></path>
+                    </svg>
+                    Upload Selected Folder
+                </button>
+                <div class="selected-files" id="selectedFiles"></div>
+            </div>
+        </form>
+
+        <div class="supported-formats">
+            📁 Supported formats: Terraform directory (.tf files)
+        </div>
+        
+        <div class="note">
+            ⚠️ Note: Requires modern browser (Chrome/Edge/Firefox)
+        </div>
+        </div>
+
+    <script>
+        // Add drag & drop visual feedback
+        // const dropZone = document.getElementById('dropZone');
+        // //const fileInput = document.querySelector('input[type="file"]');
+
+        // dropZone.addEventListener('dragover', (e) => {
+        //     e.preventDefault();
+        //     dropZone.classList.add('dragover');
+        // });
+
+        // dropZone.addEventListener('dragleave', () => {
+        //     dropZone.classList.remove('dragover');
+        // });
+
+        // dropZone.addEventListener('drop', (e) => {
+        //     e.preventDefault();
+        //     dropZone.classList.remove('dragover');
+        //     fileInput.files = e.dataTransfer.files;
+        // });
+        const fileInput = document.getElementById('fileInput');
+        const submitContainer = document.getElementById('submitContainer');
+        const uploadText = document.getElementById('uploadText');
+        const selectedFiles = document.getElementById('selectedFiles');
+
+        fileInput.addEventListener('change', function(e) {
+            if(this.files.length > 0) {
+                const path = this.files[0].webkitRelativePath;
+                const folderName = path.split('/')[0];
+                
+                submitContainer.classList.add('visible');
+                uploadText.innerHTML = `Selected Folder:<br><strong>${folderName}</strong>`;
+                selectedFiles.textContent = `${this.files.length} files selected`;
+            }
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- 
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload Terraform Config</title>
+    <style>
+        body { max-width: 800px; margin: 20px auto; padding: 20px; }
+        .upload-box { border: 2px dashed #ccc; padding: 40px; text-align: center; }
+        input[type="file"] { margin: 20px 0; }
+        
+    </style>
+</head>
+<body>
+    <h1>Upload Terraform Configuration</h1>
+    <div class="upload-box">
+        <form method="post" enctype="multipart/form-data">
+            <input type="file" name="files" webkitdirectory directory multiple required>
+            <br>
+            <input type="submit" value="Upload Folder">
+        </form>
+    </div>
+    <p>Select the folder containing your Terraform files (.tf)</p>
+</body>
+</html> -->

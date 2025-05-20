@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Configure Variables</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #3b82f6;
+            --background: #f8fafc;
+            --text-color: #1e293b;
+            --border-color: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 2rem;
+            color: var(--text-color);
+        }
+
+        .variable-form {
+            max-width: 700px;
+            margin: 2rem auto;
+            padding: 2.5rem;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 1rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .variable-form h1 {
+            text-align: center;
+            margin: 0 0 2rem 0;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-color);
+            letter-spacing: -0.025em;
+        }
+
+        .variable-item {
+            margin-bottom: 1.5rem;
+            padding: 1.5rem;
+            background: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .variable-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+        }
+
+        .variable-item label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.95rem;
+            color: var(--primary-color);
+        }
+
+        .variable-item p {
+            margin: 0.5rem 0 1rem;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: #64748b;
+        }
+
+        .variable-item input[type="text"] {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid var(--border-color);
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+            background: var(--background);
+        }
+
+        .variable-item input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .variable-item small {
+            display: block;
+            margin-top: 0.75rem;
+            font-size: 0.8rem;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+
+        button[type="submit"] {
+            width: 100%;
+            padding: 1rem 2rem;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 0.75rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        button[type="submit"]:hover {
+            background: var(--secondary-color);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+            
+            .variable-form {
+                padding: 1.5rem;
+                border-radius: 0.75rem;
+            }
+            
+            .variable-item {
+                padding: 1rem;
+            }
+        }
+
+        /* Type indicator badges */
+        .variable-item small::before {
+            content: '📌 ';
+        }
+
+        .variable-item[data-type="string"] small::before {
+            content: '📝 ';
+        }
+
+        .variable-item[data-type="number"] small::before {
+            content: '🔢 ';
+        }
+
+        .variable-item[data-type="bool"] small::before {
+            content: '✅ ';
+        }
+    </style>
+</head>
+<body>
+    <div class="variable-form">
+        <h1>Configure Your Variables</h1>
+        <form method="post" action="{{ url_for('submit_variables', session_id=session_id) }}">
+            {% for var in variables %}
+            <div class="variable-item" data-type="{{ var.type }}">
+                <label>{{ var.name }}</label>
+                {% if var.description %}<p>{{ var.description }}</p>{% endif %}
+                <input type="text" name="{{ var.name }}" value="{{ var.default }}" placeholder="{{ var.default }}">
+                <small>Type: {{ var.type }}</small>
+            </div>
+            {% endfor %}
+            <button type="submit">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                    <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                Save & Deploy Configuration
+            </button>
+        </form>
+    </div>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- <!DOCTYPE html>
+<html>
+<head>
+    <title>Set Variables</title>
+    <style>
+        .variable-form { max-width: 600px; margin: 20px auto; padding: 20px; }
+        .variable-item { margin: 15px 0; padding: 10px; border: 1px solid #eee; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        input { width: 100%; padding: 8px; margin-top: 5px; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f9f9fb;
+            margin: 0;
+            padding: 0;
+        }
+
+        .variable-form {
+            max-width: 700px;
+            margin: 40px auto;
+            padding: 30px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+        }
+
+        .variable-form h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+
+        .variable-item {
+            margin-bottom: 25px;
+            padding: 15px;
+            border: 1px solid #eaeaea;
+            border-radius: 6px;
+            background-color: #fafafa;
+        }
+
+        .variable-item label {
+            font-weight: 600;
+            display: block;
+            color: #333;
+            margin-bottom: 6px;
+        }
+
+        .variable-item p {
+            margin: 5px 0 10px;
+            font-size: 0.95em;
+            color: #666;
+        }
+
+        .variable-item input[type="text"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1em;
+            transition: border-color 0.2s;
+        }
+
+        .variable-item input[type="text"]:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+        }
+
+        .variable-item small {
+            display: block;
+            margin-top: 8px;
+            color: #888;
+            font-size: 0.85em;
+        }
+
+        button[type="submit"] {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+    </style>
+    </style>
+</head>
+<body>
+    <div class="variable-form">
+        <h1>Configure Variables</h1>
+        <form method="post" action="{{ url_for('submit_variables', session_id=session_id) }}">
+            {% for var in variables %}
+            <div class="variable-item">
+                <label>{{ var.name }}</label>
+                {% if var.description %}<p>{{ var.description }}</p>{% endif %}
+                <input type="text" name="{{ var.name }}" value="{{ var.default }}">
+                <small>Type: {{ var.type }}</small>
+            </div>
+            {% endfor %}
+            <button type="submit" style="margin-top: 20px; padding: 10px 20px;">Save & Continue</button>
+        </form>
+    </div>
+</body>
+</html> -->
