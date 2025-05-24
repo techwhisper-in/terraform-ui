@@ -168,15 +168,19 @@
             }
         });
         window.addEventListener('beforeunload', function(e) {
-        if (!navigator.sendBeacon) {
-            fetch(`/cleanup/${sessionId}`, { 
-                method: 'POST',
-                keepalive: true
-            });
-        } else {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `/cleanup/${sessionId}`, false); // Synchronous request
+            xhr.timeout = 2000; // 2 second timeout
+            
+            try {
+                xhr.send();
+            } catch (error) {
+                console.log('Cleanup request failed (expected on tab close)');
+            }
+            
+            // Force cleanup for Alpine filesystem
             navigator.sendBeacon(`/cleanup/${sessionId}`);
-        }
-    });
+        });
     </script>
 </body>
 </html>

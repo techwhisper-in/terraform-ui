@@ -1,13 +1,13 @@
 version: '3.8'
 
 services:
-  terraform-ui:
-    build: .
+  app:  # Name of the service (can be any name you choose)
+    image: techwhisper/ankit-public:terraform-ui-0.0.1
     ports:
       - "5000:5000"
     volumes:
       - ./sessions:/app/sessions
     environment:
       - FLASK_DEBUG=0
-      - CLEANUP_INTERVAL=300
-      - INACTIVITY_TIMEOUT=1800
+      - CLEANUP_INTERVAL=180
+      - INACTIVITY_TIMEOUT=600

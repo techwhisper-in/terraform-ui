@@ -172,144 +172,80 @@
             </button>
         </form>
     </div>
+
+<script>
+document.querySelector('form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const sessionId = '{{ session_id }}';
+    const formData = new FormData(this);
+
+    // Show loading overlay
+    const loader = document.createElement('div');
+    loader.className = 'loading-overlay';
+    loader.innerHTML = '<div class="loading-spinner"></div>';
+    document.body.appendChild(loader);
+
+    try {
+        // 1. Submit form data to server
+        const submitResponse = await fetch(this.action, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!submitResponse.ok) throw new Error('Form submission failed');
+
+        // 2. Wait for file to be ready
+        let fileReady = false;
+        for (let i = 0; i < 5; i++) {
+            const checkResponse = await fetch(`/download-tfvars/${sessionId}`);
+            if (checkResponse.status === 200) {
+                fileReady = true;
+                break;
+            }
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
+        
+        if (!fileReady) throw new Error('File preparation timeout');
+
+        // 3. Trigger file picker dialog
+        if ('showSaveFilePicker' in window) {
+            try {
+                const fileHandle = await window.showSaveFilePicker({
+                    suggestedName: 'terraform.tfvars',
+                    types: [{
+                        description: 'Terraform Variables',
+                        accept: {'text/plain': ['.tfvars']}
+                    }]
+                });
+                
+                // Write the file
+                const response = await fetch(`/download-tfvars/${sessionId}`);
+                const blob = await response.blob();
+                const writable = await fileHandle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+            } catch (error) {
+                if (error.name !== 'AbortError') throw error;
+            }
+        } else {
+            // Fallback for non-supporting browsers
+            const link = document.createElement('a');
+            link.href = `/download-tfvars/${sessionId}`;
+            link.download = 'terraform.tfvars';
+            link.click();
+        }
+
+        // 4. Redirect to console page
+        window.location.href = `/console/${sessionId}`;
+
+    } catch (error) {
+        console.error('Error:', error);
+        alert(`Operation failed: ${error.message}`);
+    } finally {
+        document.body.removeChild(loader);
+    }
+});
+</script>
+
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<!-- <!DOCTYPE html>
-<html>
-<head>
-    <title>Set Variables</title>
-    <style>
-        .variable-form { max-width: 600px; margin: 20px auto; padding: 20px; }
-        .variable-item { margin: 15px 0; padding: 10px; border: 1px solid #eee; }
-        label { display: block; font-weight: bold; margin-bottom: 5px; }
-        input { width: 100%; padding: 8px; margin-top: 5px; }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f9f9fb;
-            margin: 0;
-            padding: 0;
-        }
-
-        .variable-form {
-            max-width: 700px;
-            margin: 40px auto;
-            padding: 30px;
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
-        }
-
-        .variable-form h1 {
-            text-align: center;
-            margin-bottom: 30px;
-            color: #333;
-        }
-
-        .variable-item {
-            margin-bottom: 25px;
-            padding: 15px;
-            border: 1px solid #eaeaea;
-            border-radius: 6px;
-            background-color: #fafafa;
-        }
-
-        .variable-item label {
-            font-weight: 600;
-            display: block;
-            color: #333;
-            margin-bottom: 6px;
-        }
-
-        .variable-item p {
-            margin: 5px 0 10px;
-            font-size: 0.95em;
-            color: #666;
-        }
-
-        .variable-item input[type="text"] {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            font-size: 1em;
-            transition: border-color 0.2s;
-        }
-
-        .variable-item input[type="text"]:focus {
-            outline: none;
-            border-color: #007bff;
-            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
-        }
-
-        .variable-item small {
-            display: block;
-            margin-top: 8px;
-            color: #888;
-            font-size: 0.85em;
-        }
-
-        button[type="submit"] {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            background-color: #007bff;
-            border: none;
-            border-radius: 6px;
-            color: white;
-            font-size: 1.1em;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-
-        button[type="submit"]:hover {
-            background-color: #0056b3;
-        }
-    </style>
-    </style>
-</head>
-<body>
-    <div class="variable-form">
-        <h1>Configure Variables</h1>
-        <form method="post" action="{{ url_for('submit_variables', session_id=session_id) }}">
-            {% for var in variables %}
-            <div class="variable-item">
-                <label>{{ var.name }}</label>
-                {% if var.description %}<p>{{ var.description }}</p>{% endif %}
-                <input type="text" name="{{ var.name }}" value="{{ var.default }}">
-                <small>Type: {{ var.type }}</small>
-            </div>
-            {% endfor %}
-            <button type="submit" style="margin-top: 20px; padding: 10px 20px;">Save & Continue</button>
-        </form>
-    </div>
-</body>
-</html> -->

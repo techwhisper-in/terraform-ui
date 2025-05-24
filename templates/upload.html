@@ -179,9 +179,9 @@
             <div class="upload-box" id="dropZone">
                 <div class="upload-icon">📁</div>
                 <div class="upload-text" id="uploadText">
-                    click here to browse
+                    Drag & Drop or Click here to browse
                 </div>
-                <input type="file" name="files" webkitdirectory directory multiple required id="fileInput">
+                <input type="file" name="files" webkitdirectory directory multiple id="fileInput">
                 <button type="button" class="upload-button" onclick="document.getElementById('fileInput').click()">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -215,24 +215,6 @@
         </div>
 
     <script>
-        // Add drag & drop visual feedback
-        // const dropZone = document.getElementById('dropZone');
-        // //const fileInput = document.querySelector('input[type="file"]');
-
-        // dropZone.addEventListener('dragover', (e) => {
-        //     e.preventDefault();
-        //     dropZone.classList.add('dragover');
-        // });
-
-        // dropZone.addEventListener('dragleave', () => {
-        //     dropZone.classList.remove('dragover');
-        // });
-
-        // dropZone.addEventListener('drop', (e) => {
-        //     e.preventDefault();
-        //     dropZone.classList.remove('dragover');
-        //     fileInput.files = e.dataTransfer.files;
-        // });
         const fileInput = document.getElementById('fileInput');
         const submitContainer = document.getElementById('submitContainer');
         const uploadText = document.getElementById('uploadText');
@@ -252,47 +234,3 @@
 </body>
 </html>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<!-- 
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Upload Terraform Config</title>
-    <style>
-        body { max-width: 800px; margin: 20px auto; padding: 20px; }
-        .upload-box { border: 2px dashed #ccc; padding: 40px; text-align: center; }
-        input[type="file"] { margin: 20px 0; }
-        
-    </style>
-</head>
-<body>
-    <h1>Upload Terraform Configuration</h1>
-    <div class="upload-box">
-        <form method="post" enctype="multipart/form-data">
-            <input type="file" name="files" webkitdirectory directory multiple required>
-            <br>
-            <input type="submit" value="Upload Folder">
-        </form>
-    </div>
-    <p>Select the folder containing your Terraform files (.tf)</p>
-</body>
-</html> -->

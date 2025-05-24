@@ -1,53 +1,70 @@
-# Use official Python runtime as base image
-FROM python:3.10-slim-buster
+# Use Alpine-based Python image
+FROM python:3.13-alpine
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     FLASK_APP=app.py \
     FLASK_ENV=production \
-    TERRAFORM_VERSION=1.8.2
+    TERRAFORM_VERSION=1.8.2 \
+    KUBECTL_VERSION=1.29.3
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apk update && \
+    apk add --no-cache \
     curl \
     unzip \
     git \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    libc6-compat
 
 # Install Terraform
 RUN curl -LO https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
     && unzip terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
-    && mv terraform /usr/local/bin/terraform \
+    && mv terraform /usr/local/bin/ \
     && rm terraform_${TERRAFORM_VERSION}_linux_amd64.zip
 
-# Create app directory and user
-RUN useradd -m appuser
+# Install kubectl (Alpine-compatible)
+RUN curl -LO "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
+    && chmod +x kubectl \
+    && mv kubectl /usr/local/bin/ \
+    && kubectl version --client
+# Removed --short flag
+
+# Create non-root user and app directory
+RUN adduser -D -g '' appuser && \
+    mkdir -p /home/appuser/.kube && \
+    chown -R appuser:appuser /home/appuser/.kube
+
+#Work directory
 WORKDIR /app
 
-# Copy only requirements first for Docker cache efficiency
+# Install Python dependencies with build dependencies cleanup
 COPY requirements.txt .
+RUN apk add --no-cache --virtual .build-deps gcc musl-dev python3-dev \
+    && pip install --no-cache-dir -r requirements.txt \
+    && apk del .build-deps
 
-# Install Python dependencies
-RUN pip3 install --no-cache-dir -r requirements.txt
-
-# Copy the rest of the application
+# Copy application code
 COPY . .
 
-# Set proper permissions
-RUN mkdir -p /app/sessions && \
-    chown -R appuser:appuser /app && \
-    chmod +x /usr/local/bin/terraform
+# Set permissions
+RUN mkdir -p /app/sessions \
+    && chown -R appuser:appuser /app \
+    && chmod +x /usr/local/bin/terraform \
+    && chmod 755 /home/appuser/.kube
 
+# Create session directory with proper permissions
+RUN mkdir -p /app/sessions && \
+    chown -R appuser:appuser /app/sessions && \
+    chmod 755 /app/sessions
+    
 # Switch to non-root user
 USER appuser
 
-# Expose the Flask port
+# Expose port and healthcheck
 EXPOSE 5000
-
-# Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/ || exit 1
 
-# Command to run the application
+# Run application
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "app:app"]
