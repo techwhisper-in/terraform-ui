@@ -6,18 +6,21 @@ import hcl2
 import logging
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 import werkzeug
 from flask import Flask, render_template, request, redirect, url_for, Response, jsonify, session
 
+# Read environment variables, with default values if not set
+FLASK_DEBUG = os.environ.get('FLASK_DEBUG', '0') == '1'  # Converts '0' to False, '1' to True
+CLEANUP_INTERVAL = int(os.environ.get('CLEANUP_INTERVAL', 30))  # seconds
+INACTIVITY_TIMEOUT = int(os.environ.get('INACTIVITY_TIMEOUT', 600))  # seconds
 
-#app = Flask(__name__)
 app = Flask(__name__, template_folder='templates')
-# In app.py initialization
+app.debug = FLASK_DEBUG
 app.secret_key = os.urandom(24)  # Secure random secret key
 app.config['UPLOAD_FOLDER'] = os.path.abspath('sessions')
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=20)
+# app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
+# app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=20)
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
@@ -26,45 +29,21 @@ logger = logging.getLogger(__name__)
 # Session management
 sessions = {}
 session_lock = threading.Lock()
-CLEANUP_INTERVAL = 300  # 5 minutes
-INACTIVITY_TIMEOUT = 1200  # 20 minutes
 
-
-# Add custom 404 handler
 @app.errorhandler(404)
 def page_not_found(e):
     return "Page not found", 404
 
-# Add favicon route to prevent errors
 @app.route('/favicon.ico')
 def favicon():
     return '', 204
 
-# Modify the existing error handler to exclude HTTP exceptions
 @app.errorhandler(Exception)
 def handle_error(e):
     if isinstance(e, werkzeug.exceptions.HTTPException):
         return e
     logger.exception("An error occurred")
     return jsonify(error=str(e)), 500
-
-# # Add shutdown handler
-# def handle_shutdown(*args):
-#     logger.info("Shutting down, cleaning all sessions")
-#     session_dir = app.config['UPLOAD_FOLDER']
-#     if os.path.exists(session_dir):
-#         shutil.rmtree(session_dir, ignore_errors=True)
-#     os.makedirs(session_dir, exist_ok=True)
-
-# # Register signal handlers
-# signal.signal(signal.SIGTERM, handle_shutdown)
-# signal.signal(signal.SIGINT, handle_shutdown)
-# atexit.register(handle_shutdown)
-
-
-
-
-
 
 def cleanup_task():
     """Session cleanup daemon that removes both session records and files"""
@@ -73,28 +52,23 @@ def cleanup_task():
         now = datetime.now()
         with session_lock:
             to_delete = []
-            for session_id, last_active in sessions.items():
+            for session_id, last_active in list(sessions.items()):
+                print(session_id," : ",last_active)
                 if (now - last_active).total_seconds() > INACTIVITY_TIMEOUT:
                     to_delete.append(session_id)
-            
             for session_id in to_delete:
                 session_dir = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
                 safe_delete(session_dir)
-                try:
-                    del sessions[session_id]
+                if sessions.pop(session_id, None) is not None:
                     logger.info(f"Cleaned up inactive session: {session_id}")
-                except KeyError:
-                    pass
 
 cleanup_thread = threading.Thread(target=cleanup_task, daemon=True)
 cleanup_thread.start()
 
 def sanitize_path(path):
     """Prevent directory traversal attacks"""
-    path = os.path.normpath(path).replace('\\', '/')
-    path = path.lstrip('/')
+    path = os.path.normpath(path).replace('\\', '/').lstrip('/')
     parts = []
-    
     for part in path.split('/'):
         if part in ('.', ''):
             continue
@@ -103,7 +77,6 @@ def sanitize_path(path):
                 parts.pop()
             continue
         parts.append(part)
-    
     return '/'.join(parts)
 
 def grant_full_access(path):
@@ -125,13 +98,12 @@ def safe_delete(path, retries=5, delay=1):
             grant_full_access(path)
             if os.path.exists(path):
                 shutil.rmtree(path, ignore_errors=True)
-                if not os.path.exists(path):
-                    return
-                time.sleep(delay)
+            if not os.path.exists(path):
+                return
+            time.sleep(delay)
         except Exception as e:
             logger.warning(f"Delete attempt {i+1} failed: {str(e)}")
             time.sleep(delay * (i + 1))
-    
     # Final force delete
     if os.path.exists(path):
         try:
@@ -146,11 +118,6 @@ def update_session_activity(session_id):
     with session_lock:
         sessions[session_id] = datetime.now()
 
-@app.errorhandler(Exception)
-def handle_error(e):
-    logger.exception("An error occurred")
-    return jsonify(error=str(e)), 500
-
 @app.route('/', methods=['GET', 'POST'])
 def upload():
     if request.method == 'POST':
@@ -163,11 +130,9 @@ def upload():
             return "No files selected", 400
 
         for file in files:
-            if file.filename == '':
+            if not file or file.filename == '':
                 continue
-
-            filename = sanitize_path(file.filename)
-            filename = filename.replace('\\', '/')
+            filename = sanitize_path(file.filename).replace('\\', '/')
             if not filename:
                 continue
 
@@ -175,10 +140,9 @@ def upload():
                 target_path = os.path.join(session_dir, filename.split('/', 1)[1])
             else:
                 target_path = os.path.join(session_dir, filename)
-            
+
             target_abspath = os.path.abspath(target_path)
             upload_abspath = os.path.abspath(session_dir)
-
             if not target_abspath.startswith(upload_abspath):
                 return f"Invalid file path: {filename}", 400
 
@@ -186,9 +150,8 @@ def upload():
             file.save(target_abspath)
 
         session['session_id'] = session_id
-        sessions[session_id] = datetime.now()
+        update_session_activity(session_id)
         return redirect(url_for('variables', session_id=session_id))
-
     return render_template('upload.html')
 
 @app.route('/variables/<session_id>', methods=['GET'])
@@ -259,15 +222,13 @@ def submit_variables(session_id):
 def download_tfvars(session_id):
     session_dir = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
     tfvars_path = os.path.join(session_dir, 'terraform.tfvars')
-    
-    # Verify file exists and is readable
+
     if not os.path.exists(tfvars_path):
         return jsonify(error="File not found"), 404
-        
+
     with open(tfvars_path, 'rb') as f:
         content = f.read()
-    
-    # Create response with proper headers
+
     response = Response(
         content,
         mimetype='text/plain',
@@ -276,9 +237,8 @@ def download_tfvars(session_id):
             'Cache-Control': 'no-store'
         }
     )
-    
     return response
-    
+
 @app.route('/console/<session_id>')
 def console(session_id):
     update_session_activity(session_id)
@@ -287,10 +247,10 @@ def console(session_id):
 @app.route('/run-command/<session_id>', methods=['POST'])
 def run_command(session_id):
     update_session_activity(session_id)
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     command = data.get('command')
     session_dir = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
-    
+
     commands = {
         'init': ['terraform', 'init'],
         'plan': ['terraform', 'plan', '-var-file=terraform.tfvars'],
@@ -298,13 +258,13 @@ def run_command(session_id):
         'plan-destroy': ['terraform', 'plan', '-destroy', '-var-file=terraform.tfvars'],
         'destroy': ['terraform', 'destroy', '-auto-approve', '-var-file=terraform.tfvars']
     }
-    
+
     if command not in commands:
         return {'error': 'Invalid command'}, 400
-    
+
     def generate():
         needs_init = not os.path.exists(os.path.join(session_dir, '.terraform'))
-        
+
         if command != 'init' and needs_init:
             init_process = subprocess.Popen(
                 commands['init'],
@@ -314,17 +274,17 @@ def run_command(session_id):
                 bufsize=1,
                 universal_newlines=True
             )
-            
+
             yield "\n⚠️ Running automatic init first...\n\n"
             for line in iter(init_process.stdout.readline, ''):
                 yield line
             init_process.stdout.close()
             return_code = init_process.wait()
-            
+
             if return_code != 0:
                 yield "\n❌ Init failed - cannot proceed\n"
                 return
-        
+
         process = subprocess.Popen(
             commands[command],
             cwd=session_dir,
@@ -334,17 +294,17 @@ def run_command(session_id):
             universal_newlines=True,
             env={**os.environ, 'TERM': 'xterm-256color'}
         )
-        
+
         if command != 'init' and needs_init:
             yield "\n➡️ Now running command...\n\n"
-        
+
         for line in iter(process.stdout.readline, ''):
             yield line
         process.stdout.close()
         return_code = process.wait()
-        
+
         yield f"\nProcess completed with exit code {return_code}\n"
-    
+
     return Response(generate(), mimetype='text/plain')
 
 @app.route('/cleanup/<session_id>', methods=['POST'])
@@ -355,13 +315,11 @@ def explicit_cleanup(session_id):
         logger.info(f"Successfully cleaned up session: {session_id}")
     except Exception as e:
         logger.error(f"Failed to clean session {session_id}: {str(e)}")
-    
-    with session_lock:
-        if session_id in sessions:
-            del sessions[session_id]
-    
-    return '', 204
 
+    with session_lock:
+        sessions.pop(session_id, None)
+
+    return '', 204
 
 @app.route('/heartbeat/<session_id>', methods=['POST'])
 def heartbeat(session_id):

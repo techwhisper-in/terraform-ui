@@ -1,10 +1,10 @@
 # terraform-infra-console
 
-# techwhisper/ankit-public
+# techwhisper/terraform-ui:terraform-ui-v2
 
-# docker build -t techwhisper/ankit-public:v0.0.1 .
+# docker build -t techwhisper/terraform-ui:terraform-ui-v2 .
 
-# docker push techwhisper/ankit-public:v0.0.1
+# docker push techwhisper/terraform-ui:terraform-ui-v2
 
 # docker compose up -d
 

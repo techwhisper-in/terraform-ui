@@ -1,13 +1,16 @@
-version: '3.8'
-
+#version: '3.8'
 services:
   app:  # Name of the service (can be any name you choose)
-    image: techwhisper/ankit-public:terraform-ui-0.0.1
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: techwhisper/terraform-ui:terraform-ui-v2
     ports:
       - "5000:5000"
     volumes:
       - ./sessions:/app/sessions
+#      - ~/.kube/config:/appuser/.kube/config  # Mount kubeconfig for Kubernetes access
     environment:
       - FLASK_DEBUG=0
-      - CLEANUP_INTERVAL=180
+      - CLEANUP_INTERVAL=30
       - INACTIVITY_TIMEOUT=600

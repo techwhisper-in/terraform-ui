@@ -153,7 +153,7 @@
         // Session keep-alive
         setInterval(() => {
             fetch(`/heartbeat/${sessionId}`, { method: 'POST' });
-        }, 120000);
+        }, 10000);
 
         // Handle modal dismissal
         document.getElementById('confirmationModal').addEventListener('click', (e) => {
