@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: techwhisper/terraform-ui:terraform-ui-v2
+    image: techwhisper/terraform-ui:terraform-ui-v4
     ports:
       - "5000:5000"
     volumes:

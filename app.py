@@ -42,8 +42,18 @@ def favicon():
 def handle_error(e):
     if isinstance(e, werkzeug.exceptions.HTTPException):
         return e
-    logger.exception("An error occurred")
+    logger.exception(f"[{datetime.now()}] :- An error occurred")
     return jsonify(error=str(e)), 500
+
+@app.route('/healthz')
+def health_check():
+    """Health check endpoint for probes"""
+    return jsonify(status="healthy"), 200
+
+@app.route('/ready')
+def readiness_check():
+    """Readiness check endpoint for probes"""
+    return jsonify(status="ready"), 200
 
 def cleanup_task():
     """Session cleanup daemon that removes both session records and files"""
@@ -53,14 +63,14 @@ def cleanup_task():
         with session_lock:
             to_delete = []
             for session_id, last_active in list(sessions.items()):
-                print(session_id," : ",last_active)
+                logger.info(f"[{datetime.now()}] :- Session_Id : {session_id}; Last_Active_Time : {last_active}")
                 if (now - last_active).total_seconds() > INACTIVITY_TIMEOUT:
                     to_delete.append(session_id)
             for session_id in to_delete:
                 session_dir = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
                 safe_delete(session_dir)
                 if sessions.pop(session_id, None) is not None:
-                    logger.info(f"Cleaned up inactive session: {session_id}")
+                    logger.info(f"[{datetime.now()}] :- Cleaned up inactive session: {session_id}")
 
 cleanup_thread = threading.Thread(target=cleanup_task, daemon=True)
 cleanup_thread.start()
@@ -89,7 +99,7 @@ def grant_full_access(path):
                 check=True
             )
         except subprocess.CalledProcessError as e:
-            logger.warning(f"Permission modification failed: {str(e)}")
+            logger.warning(f"[{datetime.now()}] :- Permission modification failed: {str(e)}")
 
 def safe_delete(path, retries=5, delay=1):
     """Robust recursive deletion with retries"""
@@ -102,7 +112,7 @@ def safe_delete(path, retries=5, delay=1):
                 return
             time.sleep(delay)
         except Exception as e:
-            logger.warning(f"Delete attempt {i+1} failed: {str(e)}")
+            logger.warning(f"[{datetime.now()}] :- Delete attempt {i+1} failed: {str(e)}")
             time.sleep(delay * (i + 1))
     # Final force delete
     if os.path.exists(path):
@@ -112,7 +122,7 @@ def safe_delete(path, retries=5, delay=1):
             else:
                 subprocess.run(['rm', '-rf', path], check=True)
         except Exception as e:
-            logger.error(f"Force delete failed for {path}: {str(e)}")
+            logger.error(f"[{datetime.now()}] :- Force delete failed for {path}: {str(e)}")
 
 def update_session_activity(session_id):
     with session_lock:
@@ -169,7 +179,7 @@ def variables(session_id):
                 variables_tfvars = hcl2.load(f)
                 print(variables_tfvars)
         except Exception as e:
-            logger.error(f"Error parsing variables tfvars value: {str(e)}")
+            logger.error(f"[{datetime.now()}] :- Error parsing variables tfvars value: {str(e)}")
 
 
     if os.path.exists(variables_tf_path):
@@ -195,7 +205,7 @@ def variables(session_id):
                             'description': var_details.get('description', '')
                         })
         except Exception as e:
-            logger.error(f"Error parsing variables: {str(e)}")
+            logger.error(f"[{datetime.now()}] :- Error parsing variables: {str(e)}")
     
     return render_template('variables.html', session_id=session_id, variables=variables)
 
@@ -312,9 +322,9 @@ def explicit_cleanup(session_id):
     session_dir = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
     try:
         safe_delete(session_dir)
-        logger.info(f"Successfully cleaned up session: {session_id}")
+        logger.info(f"[{datetime.now()}] :- Successfully cleaned up session: {session_id}")
     except Exception as e:
-        logger.error(f"Failed to clean session {session_id}: {str(e)}")
+        logger.error(f"[{datetime.now()}] :- Failed to clean session {session_id}: {str(e)}")
 
     with session_lock:
         sessions.pop(session_id, None)
@@ -328,4 +338,4 @@ def heartbeat(session_id):
 
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=app.debug)
