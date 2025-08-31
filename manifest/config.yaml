@@ -1,0 +1,194 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: terraform-ui
+  labels:
+    app.kubernetes.io/name: terraform-ui
+    app.kubernetes.io/component: namespace
+    app.kubernetes.io/part-of: terraform-platform
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: terraform-ui-pvc
+  namespace: terraform-ui
+  labels:
+    app.kubernetes.io/name: terraform-ui
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  # Optional: Specify storage class if needed
+  # storageClassName: standard
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: terraform-ui-sa
+  namespace: terraform-ui
+  labels:
+    app.kubernetes.io/name: terraform-ui
+    app.kubernetes.io/component: service-account
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: terraform-ui-cluster-rolebinding
+  labels:
+    app.kubernetes.io/name: terraform-ui
+    app.kubernetes.io/component: rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: terraform-ui-sa
+  namespace: terraform-ui
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: terraform-ui
+  namespace: terraform-ui
+  labels:
+    app.kubernetes.io/name: terraform-ui
+    app.kubernetes.io/component: deployment
+    app.kubernetes.io/version: "v3"
+    app.kubernetes.io/part-of: terraform-platform
+    app.kubernetes.io/managed-by: argocd
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: terraform-ui
+      app.kubernetes.io/component: deployment
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: terraform-ui
+        app.kubernetes.io/component: deployment
+        app.kubernetes.io/version: "v3"
+    spec:
+      serviceAccountName: terraform-ui-sa
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: terraform-ui
+        image: techwhisper/terraform-ui:terraform-ui-v3
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5000
+          name: http
+          protocol: TCP
+        env:
+        - name: FLASK_DEBUG
+          value: "0"
+        - name: CLEANUP_INTERVAL
+          value: "30"
+        - name: INACTIVITY_TIMEOUT
+          value: "600"
+        - name: RUN_IN_CLUSTER
+          value: "true"
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "500m"
+          limits:
+            memory: "4Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        startupProbe:
+          tcpSocket:
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 15
+        volumeMounts:
+        - name: persistent-storage
+          mountPath: /app/sessions
+          subPath: sessions  # Mount a subdirectory instead of root
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: persistent-storage
+        persistentVolumeClaim:
+          claimName: terraform-ui-pvc
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: terraform-ui-service
+  namespace: terraform-ui
+  labels:
+    app.kubernetes.io/name: terraform-ui
+    app.kubernetes.io/component: service
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: terraform-ui
+    app.kubernetes.io/component: deployment
+  ports:
+  - name: http
+    port: 8082
+    targetPort: 5000
+    protocol: TCP
+    nodePort: 30124
+  sessionAffinity: None
